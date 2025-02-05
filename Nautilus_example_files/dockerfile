@@ -1,0 +1,53 @@
+# Use a lightweight base image with GPU support
+FROM nvidia/cuda:12.3.1-base-ubuntu20.04
+
+# Set the environment variable for non-interactive apt-get
+ENV DEBIAN_FRONTEND=noninteractive
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH="/opt/conda/bin:$PATH"
+
+# Install essential tools and libraries
+RUN apt-get update && apt-get install -y \
+    openssh-server \
+    wget \
+    curl \
+    git \
+    ffmpeg \
+    bzip2 \
+    libglib2.0-0 \
+    rsync \
+    sudo \
+    vim \
+    build-essential \
+    libssl-dev \
+    libffi-dev \
+    python3-dev \
+    python3-pip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up SSH
+RUN mkdir -p /run/sshd && chmod 755 /run/sshd
+RUN echo 'root:root' | chpasswd
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+EXPOSE 22
+
+# Install Miniconda
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash Miniconda3-latest-Linux-x86_64.sh -b -p /opt/conda && \
+    rm Miniconda3-latest-Linux-x86_64.sh && \
+    /opt/conda/bin/conda clean -ya
+
+# Create a Conda environment and install Python packages
+RUN /opt/conda/bin/conda create -n <env-name> python=3.10 -y && \
+    /opt/conda/bin/conda run -n <env-name> pip install --no-cache-dir \
+    torch torchvision torchaudio 
+    # Add other packages here
+
+RUN /opt/conda/bin/conda run -n <env-name> pip install xformers
+
+# Ensure Conda environment activates in interactive sessions
+RUN echo "source /opt/conda/bin/activate <env-name>" >> ~/.bashrc
+
+# Set the default command to start the SSH server
+CMD ["/usr/sbin/sshd", "-D"]
